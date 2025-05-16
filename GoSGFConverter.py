@@ -1,10 +1,6 @@
-import random
 import cv2
 import numpy as np
-import pytesseract
-import re
 from PIL import Image
-import os
 from typing import List, Tuple, Dict
 
 from debugger import Debugger
@@ -43,7 +39,7 @@ class GoSGFConverter:
 
     def extract_problem_data(self, page_image: np.ndarray) -> Dict:
         """Extract components from a single problem image"""
-        print('extract_single_problem...')
+        print('extract_problem_data...')
 
         # Find text regions to isolate board
         problem_region, board_region, description_region = find_board_bounds_by_text(page_image, self.debugger)
@@ -51,8 +47,6 @@ class GoSGFConverter:
         # Extract description, player, and problem number
         description, player = te.extract_description(description_region)
         problem_number = te.extract_problem_number(problem_region)
-
-        # board_section -> edge -> HoughLines -> corners -> orient -> edge -> HoughLines -> grid
 
         # Extract board lines
         edges, lines = fe.detect_lines(board_region)
@@ -78,6 +72,8 @@ class GoSGFConverter:
 
         #####################################################################################
 
+        # Now oriented_board contains the centered-orthogonal board image
+
         # Extract board lines
         oriented_edges, oriented_lines = fe.detect_lines(oriented_board)
         self.debugger.save_debug_image(oriented_edges, "oriented_board_edges.jpg")
@@ -87,6 +83,8 @@ class GoSGFConverter:
         self.debugger.save_debug_image(oriented_line_image, "oriented_board_lines.jpg")
 
         #####################################################################################
+
+        # Everything past this point is WIP
 
         # Detect stones using geometric approach
         stones, grid_overlay = self.detect_stones_geometric(board_region, h_lines, v_lines, corners)
@@ -423,37 +421,3 @@ class GoSGFConverter:
         sgf_content = ''.join(sgf_parts)
         print(f"DEBUG: Generated SGF: {sgf_content}")
         return sgf_content
-
-
-def main():
-    problem_num = '23'
-    model = '4b'
-
-    # Process single JPG file
-    image_path = f"problem_images/problem-{problem_num}.jpg"
-
-    # Create SGFs directory
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    sgf_dir = os.path.join(base_dir, "SGFs")
-    os.makedirs(sgf_dir, exist_ok=True)
-
-    # Create processed_images directory
-    processed_dir = f"processed_images-{problem_num}-{model}"
-    os.makedirs(processed_dir, exist_ok=True)
-
-    converter = GoSGFConverter(processed_dir)
-
-    sgf_file = converter.process_image(image_path)
-
-    # Save SGF file
-    if sgf_file:
-        filename = os.path.join(sgf_dir, f"problem-{problem_num}-{model}.sgf")
-        with open(filename, 'w') as f:
-            f.write(sgf_file)
-        print(f"Saved {filename}")
-
-    print("Processing complete! Check the 'processed_images' directory for debug images.")
-
-
-if __name__ == "__main__":
-    main()
