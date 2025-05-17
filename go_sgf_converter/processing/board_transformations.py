@@ -1,8 +1,21 @@
+"""
+Functions for transforming Go board images.
+"""
 import cv2
 import numpy as np
+from typing import Dict, Tuple
 
 
 def orient_board(board_image: np.ndarray, corners) -> np.ndarray:
+    """Transform the board image to a standard orientation.
+    
+    Args:
+        board_image: Image containing the Go board
+        corners: Dictionary mapping corner names to coordinates
+        
+    Returns:
+        Oriented board image with white background
+    """
     pts_src = np.array([
         corners['top-left'],
         corners['top-right'],

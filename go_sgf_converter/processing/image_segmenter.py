@@ -1,11 +1,23 @@
+"""
+Functions for segmenting Go problem images into components.
+"""
 import cv2
 import numpy as np
 import pytesseract
 import re
+from typing import Tuple
 
 
-def find_board_bounds_by_text(image: np.ndarray, debugger):
-    """Find board boundaries by locating Problem title and description text"""
+def find_board_bounds_by_text(image: np.ndarray, debugger) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Find board boundaries by locating Problem title and description text
+    
+    Args:
+        image: Input image containing Go problem
+        debugger: Debugger instance for saving intermediate images
+        
+    Returns:
+        Tuple of (problem_region, board_region, description_region) as numpy arrays
+    """
     gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
 
     # Get all text with positions
@@ -60,14 +72,6 @@ def find_board_bounds_by_text(image: np.ndarray, debugger):
     problem_region = image[:board_bounds['top'], board_bounds['left']:board_bounds['right']]
     board_region = image[board_bounds['top']:board_bounds['bottom'], board_bounds['left']:board_bounds['right']]
     description_region = image[board_bounds['bottom']:, board_bounds['left']:board_bounds['right']]
-
-    # _, board_region = cv2.threshold(board_region, 220, 255, cv2.THRESH_BINARY)
-
-    # # Define the kernel (controls how much to thicken)
-    # kernel = np.zeros((3, 3), np.uint8)  # You can try (5, 5) for even thicker lines
-    #
-    # # Apply dilation
-    # board_region = cv2.dilate(board_region, kernel, iterations=1)
 
     debugger.save_debug_image(problem_region, "problem_region.jpg")
     debugger.save_debug_image(description_region, "description_region.jpg")

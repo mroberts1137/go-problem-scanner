@@ -1,15 +1,21 @@
-import random
+"""
+Functions for extracting features from Go board images.
+"""
 import cv2
 import numpy as np
-import pytesseract
-import re
-from PIL import Image
-import os
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Optional
 
 
-def detect_lines(board_image: np.ndarray):
-    """Find grid corner and spacing using line detection"""
+def detect_lines(board_image: np.ndarray) -> Tuple[np.ndarray, Optional[np.ndarray]]:
+    """Find grid lines in the board image.
+    
+    Args:
+        board_image: Image containing Go board
+        
+    Returns:
+        Tuple of (edges, lines) where edges is grayscale edge image and
+        lines is array of line segments or None if no lines detected
+    """
     # Convert to grayscale
     gray = cv2.cvtColor(board_image, cv2.COLOR_RGB2GRAY)
 
@@ -22,7 +28,16 @@ def detect_lines(board_image: np.ndarray):
     return edges, lines
 
 
-def draw_board_lines(board_image, lines):
+def draw_board_lines(board_image: np.ndarray, lines: Optional[np.ndarray]) -> np.ndarray:
+    """Create a visualization of detected board lines.
+    
+    Args:
+        board_image: Original board image
+        lines: Array of line segments from HoughLinesP
+        
+    Returns:
+        Image with lines drawn
+    """
     # Create visualization of detected lines
     line_image = board_image.copy()
 
@@ -34,7 +49,15 @@ def draw_board_lines(board_image, lines):
     return line_image
 
 
-def line_classifier(lines):
+def line_classifier(lines: Optional[np.ndarray]) -> Tuple[List[List[int]], List[List[int]]]:
+    """Classify lines as horizontal or vertical.
+    
+    Args:
+        lines: Array of line segments from HoughLinesP
+        
+    Returns:
+        Tuple of (horizontal_lines, vertical_lines)
+    """
     horizontal_lines = []
     vertical_lines = []
 
@@ -53,9 +76,16 @@ def line_classifier(lines):
     return horizontal_lines, vertical_lines
 
 
-def detect_board_corners(h_lines: List, v_lines: List):
-    """Detect which corner of the board is being shown"""
-
+def detect_board_corners(h_lines: List, v_lines: List) -> Dict[str, Tuple[int, int]]:
+    """Detect corners of the Go board using line intersections.
+    
+    Args:
+        h_lines: List of horizontal line segments
+        v_lines: List of vertical line segments
+        
+    Returns:
+        Dictionary mapping corner names ('top-left', etc.) to (x,y) coordinates
+    """
     # Find extreme line positions
     top_line = min(h_lines, key=lambda line: min(line[1], line[3]))
     bottom_line = max(h_lines, key=lambda line: max(line[1], line[3]))
@@ -75,8 +105,6 @@ def detect_board_corners(h_lines: List, v_lines: List):
     bottom_left = intersection(bottom_eq, left_eq)
     bottom_right = intersection(bottom_eq, right_eq)
 
-    # corner_pts = top_left, top_right, bottom_right, bottom_left
-
     corners = {
         'top-left': tuple(map(int, top_left)),
         'top-right': tuple(map(int, top_right)),
@@ -87,7 +115,16 @@ def detect_board_corners(h_lines: List, v_lines: List):
     return corners
 
 
-def line_from_points(p1, p2):
+def line_from_points(p1: Tuple[int, int], p2: Tuple[int, int]) -> Tuple[float, float, float]:
+    """Convert two points to line equation (Ax + By + C = 0).
+    
+    Args:
+        p1: First point coordinates (x, y)
+        p2: Second point coordinates (x, y)
+        
+    Returns:
+        Coefficients of line equation (A, B, C)
+    """
     x1, y1 = p1
     x2, y2 = p2
     a = y1 - y2
@@ -96,7 +133,16 @@ def line_from_points(p1, p2):
     return a, b, -c  # Return as Ax + By + C = 0
 
 
-def intersection(l1, l2):
+def intersection(l1: Tuple[float, float, float], l2: Tuple[float, float, float]) -> Optional[Tuple[float, float]]:
+    """Find intersection of two lines.
+    
+    Args:
+        l1: First line coefficients (A, B, C)
+        l2: Second line coefficients (A, B, C)
+        
+    Returns:
+        Intersection point (x, y) or None if lines are parallel
+    """
     a1, b1, c1 = l1
     a2, b2, c2 = l2
     det = a1 * b2 - a2 * b1
@@ -107,7 +153,16 @@ def intersection(l1, l2):
     return x, y
 
 
-def draw_board_corners(board_image, corners):
+def draw_board_corners(board_image: np.ndarray, corners: Dict[str, Tuple[int, int]]) -> np.ndarray:
+    """Draw board corners on image for debugging.
+    
+    Args:
+        board_image: Original board image
+        corners: Dictionary mapping corner names to coordinates
+        
+    Returns:
+        Image with board corners drawn
+    """
     # Draw board boundaries debug image
     img = board_image.copy()
     cv2.line(img, corners['top-left'], corners['top-right'], (0, 255, 0), 2)
