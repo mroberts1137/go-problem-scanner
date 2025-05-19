@@ -73,26 +73,27 @@ class GoSGFConverter:
         description, player = te.extract_description(description_region)
         problem_number = te.extract_problem_number(problem_region)
 
-        # Extract board lines
-        edges, lines = fe.detect_lines(board_region)
-        self.debugger.save_debug_image(edges, "board_edges.jpg")
+        # Extract board border box
+        border_box = fe.get_board_border(board_region, self.debugger)
 
-        # Draw board lines
-        line_image = fe.draw_board_lines(board_region, lines)
-        self.debugger.save_debug_image(line_image, "board_lines.jpg")
-
-        # Classify horizontal/vertical lines
-        h_lines, v_lines = fe.line_classifier(lines)
-
-        # Detect board corners
-        corners = fe.detect_board_corners(h_lines, v_lines)
-
-        # Draw board corners
-        corners_image = fe.draw_board_corners(board_region, corners)
-        self.debugger.save_debug_image(corners_image, "board_corners.jpg")
+        # # Extract board lines
+        # edges, lines = fe.detect_lines(board_region)
+        # self.debugger.save_debug_image(edges, "board_edges.jpg")
+        #
+        # # Draw board lines
+        # line_image = fe.draw_board_lines(board_region, lines)
+        # self.debugger.save_debug_image(line_image, "board_lines.jpg")
+        #
+        #
+        # # Detect board corners
+        # corners = fe.detect_board_corners(h_lines, v_lines)
+        #
+        # # Draw board corners
+        # corners_image = fe.draw_board_corners(board_region, corners)
+        # self.debugger.save_debug_image(corners_image, "board_corners.jpg")
 
         # Orient board with projective transformation
-        oriented_board = bt.orient_board(board_region, corners)
+        oriented_board = bt.orient_board(board_region, border_box)
         self.debugger.save_debug_image(oriented_board, "oriented_board.jpg")
 
         #####################################################################################
@@ -107,11 +108,16 @@ class GoSGFConverter:
         oriented_line_image = fe.draw_board_lines(oriented_board, oriented_lines)
         self.debugger.save_debug_image(oriented_line_image, "oriented_board_lines.jpg")
 
+        # Classify horizontal/vertical lines
+        h_lines, v_lines = fe.line_classifier(oriented_lines)
+
         #####################################################################################
+
+        exit(0)
 
         # Detect stones using geometric approach
         stones = sd.detect_stones_geometric(board_region, h_lines, v_lines,
-                                                        corners, self.board_coordinates, self.debugger)
+                                                        border_box, self.board_coordinates, self.debugger)
 
         return {
             'stones': stones,

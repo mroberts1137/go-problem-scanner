@@ -6,6 +6,58 @@ import numpy as np
 from typing import List, Tuple, Dict, Optional
 
 
+def get_board_border(board_image: np.ndarray, debugger):
+    gray = cv2.cvtColor(board_image, cv2.COLOR_RGB2GRAY)
+
+    _, thresh = cv2.threshold(gray, 200, 255, 0)
+    debugger.save_debug_image(thresh, "pre-contour_thresh.jpg")
+
+    contours, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+    if not contours:
+        raise ValueError("No contours found.")
+
+    height, width = board_image.shape[:2]
+    margin = 10  # pixel margin to define "too close to edge"
+
+    def is_contour_touching_edge(contour):
+        for point in contour:
+            x, y = point[0]
+            if x <= margin or x >= width - margin or y <= margin or y >= height - margin:
+                return True
+        return False
+
+    # Filter out contours that touch the edge
+    internal_contours = [cnt for cnt in contours if not is_contour_touching_edge(cnt)]
+
+    if not internal_contours:
+        raise ValueError("No internal contours found.")
+
+    # Combine all internal contours into one big set of points
+    all_points = np.vstack(internal_contours)
+
+    # Get the convex hull of all points
+    hull = cv2.convexHull(all_points)
+
+    # Fit a rotated rectangle around the hull
+    rect = cv2.minAreaRect(hull)
+    box = cv2.boxPoints(rect)
+    box = box.astype(int)
+
+    contour_image = board_image.copy()
+    cv2.drawContours(contour_image, contours, -1, (0, 0, 255), 3)
+    debugger.save_debug_image(contour_image, "contour_image.jpg")
+
+    internal_contours_image = board_image.copy()
+    cv2.drawContours(internal_contours_image, internal_contours, -1, (0, 255, 0), 2)
+    debugger.save_debug_image(internal_contours_image, "internal_contours_image.jpg")
+
+    box_image = board_image.copy()
+    cv2.drawContours(box_image, [box], 0, (0, 255, 0), 2)
+    debugger.save_debug_image(box_image, "border_box_image.jpg")
+
+    return box
+
 def detect_lines(board_image: np.ndarray) -> Tuple[np.ndarray, Optional[np.ndarray]]:
     """Find grid lines in the board image.
     
