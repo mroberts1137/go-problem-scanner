@@ -41,6 +41,10 @@ def main():
     processed_dir = os.path.join(cwd, f"processed_images-{problem_num}")
     os.makedirs(processed_dir, exist_ok=True)
 
+    # Create problem metadata directory in cwd
+    metadata_dir = os.path.join(cwd, f"problem_metadata")
+    os.makedirs(metadata_dir, exist_ok=True)
+
     # Process image
     converter = GoSGFConverter(processed_dir)
     sgf_content = converter.process_image(args.image)

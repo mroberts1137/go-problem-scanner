@@ -45,28 +45,57 @@ def detect_stone_at_point(image: np.ndarray, point: Tuple[int, int]) -> Union[st
     return None
 
 
-def find_grid_parameters(board_image: np.ndarray, h_lines: List, v_lines: List, corners, corner_type: str) -> Dict:
+def find_grid_parameters(h_lines: List, v_lines: List) -> Tuple:
     """Find grid corner and spacing using line detection.
     
     Args:
-        board_image: Image containing Go board
         h_lines: Horizontal lines
         v_lines: Vertical lines
-        corners: Dictionary of board corners
-        corner_type: Which corner of the board is shown ('top-left', etc.)
         
     Returns:
         Dictionary containing 'corner', 'spacing_x', 'spacing_y', and 'corner_type'
     """
     # Find board corner and spacing
-    corner, spacing = calculate_grid_from_lines(h_lines, v_lines, board_image.shape, corner_type)
+    if not h_lines or not v_lines:
+        raise ValueError("No lines specified.")
 
-    return {
-        'corner': corner,
-        'spacing_x': spacing[0],
-        'spacing_y': spacing[1],
-        'corner_type': corner_type
-    }
+    # Extract coordinates and calculate spacing as before
+    v_coords = []
+    for line in v_lines:
+        x1, y1, x2, y2 = line
+        v_coords.append((x1 + x2) // 2)
+
+    h_coords = []
+    for line in h_lines:
+        x1, y1, x2, y2 = line
+        h_coords.append((y1 + y2) // 2)
+
+    # Sort coordinates
+    v_coords.sort()
+    h_coords.sort()
+
+    # Calculate spacing
+    def find_most_common_spacing(coords):
+        if len(coords) < 2:
+            return 30  # Default spacing
+        differences = []
+        # line_diffs = []
+        for i in range(len(coords) - 1):
+            diff = coords[i + 1] - coords[i]
+            # line_diffs.append(diff)
+            if 10 <= diff <= 65:  # Reasonable range for grid spacing
+                differences.append(diff)
+        # print(line_diffs)
+        if differences:
+            return int(np.median(differences))
+        return 30
+
+    spacing_x = find_most_common_spacing(v_coords)
+    spacing_y = find_most_common_spacing(h_coords)
+
+    print(f"DEBUG: Calculated spacing - X: {spacing_x}, Y: {spacing_y}")
+
+    return spacing_x, spacing_y
 
 
 def detect_board_corner(h_lines: List, v_lines: List, corners) -> str:
@@ -129,85 +158,6 @@ def detect_board_corner(h_lines: List, v_lines: List, corners) -> str:
     # Default to top-right if no clear corner found
     print("DEBUG: No clear corner detected, defaulting to top-right")
     return 'top-right'
-
-
-def calculate_grid_from_lines(h_lines: List, v_lines: List, image_shape: Tuple, corner_type: str) -> Tuple[Tuple[int, int], Tuple[int, int]]:
-    """Calculate grid corner and spacing from detected lines.
-    
-    Args:
-        h_lines: List of horizontal line segments
-        v_lines: List of vertical line segments
-        image_shape: Shape of the image (height, width)
-        corner_type: Which corner of the board is shown ('top-left', etc.)
-        
-    Returns:
-        Tuple of ((corner_x, corner_y), (spacing_x, spacing_y))
-    """
-    print('calculate_grid_from_lines...')
-
-    if not h_lines or not v_lines:
-        # Fallback to default values based on corner type
-        print("DEBUG: No lines detected, using default grid parameters")
-        height, width = image_shape[:2]
-        if corner_type == 'top-left':
-            return (50, 50), (30, 30)
-        elif corner_type == 'top-right':
-            return (width - 300, 50), (30, 30)
-        elif corner_type == 'bottom-left':
-            return (50, height - 300), (30, 30)
-        else:  # bottom-right
-            return (width - 300, height - 300), (30, 30)
-
-    # Extract coordinates and calculate spacing as before
-    v_x_coords = []
-    for line in v_lines:
-        x1, y1, x2, y2 = line
-        v_x_coords.append((x1 + x2) // 2)
-
-    h_y_coords = []
-    for line in h_lines:
-        x1, y1, x2, y2 = line
-        h_y_coords.append((y1 + y2) // 2)
-
-    # Sort coordinates
-    v_x_coords.sort()
-    h_y_coords.sort()
-
-    # Calculate spacing
-    def find_most_common_spacing(coords):
-        if len(coords) < 2:
-            return 30  # Default spacing
-        differences = []
-        for i in range(len(coords) - 1):
-            diff = coords[i + 1] - coords[i]
-            if 15 <= diff <= 50:  # Reasonable range for grid spacing
-                differences.append(diff)
-        if differences:
-            return int(np.median(differences))
-        return 30
-
-    spacing_x = find_most_common_spacing(v_x_coords)
-    spacing_y = find_most_common_spacing(h_y_coords)
-
-    print(f"DEBUG: Calculated spacing - X: {spacing_x}, Y: {spacing_y}")
-
-    # Find corner based on detected corner type
-    if corner_type == 'top-left':
-        corner_x = min(v_x_coords) if v_x_coords else 50
-        corner_y = min(h_y_coords) if h_y_coords else 50
-    elif corner_type == 'top-right':
-        corner_x = max(v_x_coords) if v_x_coords else image_shape[1] - 50
-        corner_y = min(h_y_coords) if h_y_coords else 50
-    elif corner_type == 'bottom-left':
-        corner_x = min(v_x_coords) if v_x_coords else 50
-        corner_y = max(h_y_coords) if h_y_coords else image_shape[0] - 50
-    else:  # bottom-right
-        corner_x = max(v_x_coords) if v_x_coords else image_shape[1] - 50
-        corner_y = max(h_y_coords) if h_y_coords else image_shape[0] - 50
-
-    print(f"DEBUG: {corner_type} corner at ({corner_x}, {corner_y})")
-
-    return (corner_x, corner_y), (spacing_x, spacing_y)
 
 
 def create_geometric_grid(board_image: np.ndarray, grid_params: Dict, board_coordinates: str, debugger) -> Dict[str, Tuple[int, int]]:

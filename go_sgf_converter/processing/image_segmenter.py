@@ -5,10 +5,10 @@ import cv2
 import numpy as np
 import pytesseract
 import re
-from typing import Tuple
+from typing import Tuple, Dict
 
 
-def find_board_bounds_by_text(image: np.ndarray, debugger) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+def find_board_bounds_by_text(image: np.ndarray, debugger) -> Tuple[np.ndarray, np.ndarray, np.ndarray, Dict]:
     """Find board boundaries by locating Problem title and description text
     
     Args:
@@ -73,8 +73,4 @@ def find_board_bounds_by_text(image: np.ndarray, debugger) -> Tuple[np.ndarray, 
     board_region = image[board_bounds['top']:board_bounds['bottom'], board_bounds['left']:board_bounds['right']]
     description_region = image[board_bounds['bottom']:, board_bounds['left']:board_bounds['right']]
 
-    debugger.save_debug_image(problem_region, "problem_region.jpg")
-    debugger.save_debug_image(description_region, "description_region.jpg")
-    debugger.save_debug_image(board_region, "extracted_board.jpg")
-
-    return problem_region, board_region, description_region
+    return problem_region, board_region, description_region, board_bounds
