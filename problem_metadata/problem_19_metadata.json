@@ -1,37 +1,37 @@
 {
   "board_bounds": {
-    "top": 57,
-    "bottom": 375,
+    "top": 63,
+    "bottom": 379,
     "left": 0,
-    "right": 339
+    "right": 336
   },
-  "problem_number": 23,
+  "problem_number": 19,
   "border_box": [
     [
-      18,
-      34
+      49,
+      31
     ],
     [
-      325,
-      42
+      313,
+      37
     ],
     [
-      317,
-      319
+      306,
+      316
     ],
     [
-      10,
-      311
+      42,
+      310
     ]
   ],
   "corner_points": {
     "top-right": [
-      550,
+      547,
       52
     ]
   },
   "grid_spacing": {
-    "h_spacing": 47,
+    "h_spacing": 55,
     "v_spacing": 52
   }
 }

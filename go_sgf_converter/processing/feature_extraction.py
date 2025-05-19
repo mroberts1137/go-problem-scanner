@@ -11,7 +11,7 @@ from go_sgf_converter.processing import image_processing as ip
 
 def get_board_border(board_image: np.ndarray, debugger):
     inverted_image = ip.invert_image(board_image)
-    debugger.save_debug_image(inverted_image, "pre-contour_thresh.jpg")
+    # debugger.save_debug_image(inverted_image, "pre-contour_thresh.jpg")
 
     # Apply dilation
     thickened = ip.thicken_lines(inverted_image)
@@ -22,39 +22,11 @@ def get_board_border(board_image: np.ndarray, debugger):
     if not contours:
         raise ValueError("No contours found.")
 
-    # height, width = board_image.shape[:2]
-    # margin = 10  # pixel margin to define "too close to edge"
-    #
-    # def is_contour_touching_edge(contour):
-    #     for point in contour:
-    #         x, y = point[0]
-    #         if x <= margin or x >= width - margin or y <= margin or y >= height - margin:
-    #             return True
-    #     return False
-    #
-    # # Filter out contours that touch the edge
-    # internal_contours = [cnt for cnt in contours if not is_contour_touching_edge(cnt)]
-    #
-    # if not internal_contours:
-    #     raise ValueError("No internal contours found.")
-    #
-    # # Combine all internal contours into one big set of points
-    # all_points = np.vstack(internal_contours)
-    #
-    # # Get the convex hull of all points
-    # hull = cv2.convexHull(all_points)
-
-    # Fit a rotated rectangle around the hull
-    # rect = cv2.minAreaRect(hull)
-
-########
     # Find the largest contour by area
     largest_contour = max(contours, key=cv2.contourArea)
 
     # Get min area rectangle
     rect = cv2.minAreaRect(largest_contour)
-#########
-
     box = cv2.boxPoints(rect)
 
     def sort_corners(pts: np.ndarray) -> np.ndarray:
@@ -73,29 +45,26 @@ def get_board_border(board_image: np.ndarray, debugger):
     box = sort_corners(box)
 
     contour_image = board_image.copy()
-    cv2.drawContours(contour_image, contours, -1, (0, 255, 0), 3)
+    cv2.drawContours(contour_image, contours, -1, (0, 0, 255), 2)
     debugger.save_debug_image(contour_image, "contour_image.jpg")
 
-    # internal_contours_image = board_image.copy()
-    # cv2.drawContours(internal_contours_image, internal_contours, -1, (0, 255, 0), 2)
-    # debugger.save_debug_image(internal_contours_image, "internal_contours_image.jpg")
-
     box_image = board_image.copy()
-    cv2.drawContours(box_image, [box], 0, (0, 255, 0), 2)
+    cv2.drawContours(box_image, [box], 0, (0, 0, 255), 3)
     debugger.save_debug_image(box_image, "border_box_image.jpg")
 
     return box
 
 
+def get_boundaries(border):
+    top = (border[0, 1] + border[1, 1]) / 2
+    bottom = (border[3, 1] + border[2, 1]) / 2
+    left = (border[0, 0] + border[3, 0]) / 2
+    right = (border[1, 0] + border[2, 0]) / 2
+    return {'top': top, 'bottom': bottom, 'left': left, 'right': right}
+
+
 def get_board_edges(outer_border, inner_border):
     edges = []
-
-    def get_boundaries(border):
-        top = (border[0, 1] + border[1, 1]) / 2
-        bottom = (border[3, 1] + border[2, 1]) / 2
-        left = (border[0, 0] + border[3, 0]) / 2
-        right = (border[1, 0] + border[2, 0]) / 2
-        return {'top': top, 'bottom': bottom, 'left': left, 'right': right}
 
     outer_boundaries = get_boundaries(outer_border)
     inner_boundaries = get_boundaries(inner_border)
@@ -111,6 +80,77 @@ def get_board_edges(outer_border, inner_border):
     print(differences)
 
     return edges
+
+
+def get_corner_points(corners, edges):
+    corner_points = {}
+    if 'top' in edges and 'left' in edges:
+        corner_points['top-left'] = corners['top-left']
+    if 'top' in edges and 'right' in edges:
+        corner_points['top-right'] = corners['top-right']
+    if 'bottom' in edges and 'right' in edges:
+        corner_points['bottom_right'] = corners['bottom-right']
+    if 'bottom' in edges and 'left' in edges:
+        corner_points['bottom-left'] = corners['bottom-left']
+
+    return corner_points
+
+
+def construct_board_grid(corner_points, grid_spacing):
+    board_grid = {}
+
+    # Extract top-left corner based on corner_points
+    if 'top-left' in corner_points:
+        top_left = np.array(corner_points['top-left'], dtype=np.int32)
+    elif 'top-right' in corner_points:
+        top_right = np.array(corner_points['top-right'], dtype=np.int32)
+        top_left = top_right - np.array([18 * grid_spacing['h_spacing'], 0], dtype=np.int32)
+    elif 'bottom-left' in corner_points:
+        bottom_left = np.array(corner_points['bottom-left'], dtype=np.int32)
+        top_left = bottom_left - np.array([0, 18 * grid_spacing['v_spacing']], dtype=np.int32)
+    elif 'bottom-right' in corner_points:
+        bottom_right = np.array(corner_points['bottom-right'], dtype=np.int32)
+        top_left = bottom_right - np.array([18 * grid_spacing['h_spacing'], 18 * grid_spacing['v_spacing']], dtype=np.int32)
+    else:
+        raise ValueError("No corner points found")
+    print('top-left: ', top_left)
+
+    # Construct 2D board grid as a dict with (row, col) keys
+    for row in range(19):
+        for col in range(19):
+            point = top_left + np.array([
+                col * grid_spacing['h_spacing'],
+                row * grid_spacing['v_spacing']
+            ], dtype=np.int32)
+            board_grid[(row, col)] = point
+
+    return board_grid
+
+
+def get_image_grid(board_grid, convex_hull_border):
+    boundaries = get_boundaries(convex_hull_border)
+    padding = 10
+
+    # Apply padding to boundaries
+    boundaries['left'] -= padding
+    boundaries['right'] += padding
+    boundaries['top'] -= padding
+    boundaries['bottom'] += padding
+
+    # Create a filtered grid dictionary
+    image_grid = {}
+
+    for row in range(19):
+        for col in range(19):
+            point = board_grid.get((row, col))
+            if point is None:
+                continue  # skip missing points
+
+            x, y = point
+            if boundaries['left'] < x < boundaries['right'] and boundaries['top'] < y < boundaries['bottom']:
+                image_grid[(row, col)] = point
+
+    return image_grid
 
 
 def detect_lines(board_image: np.ndarray) -> Tuple[np.ndarray, Optional[np.ndarray]]:

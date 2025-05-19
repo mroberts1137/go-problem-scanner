@@ -82,7 +82,7 @@ class GoSGFConverter:
         problem_number = te.extract_problem_number(problem_region)
         self.problem_metadata['problem_number'] = problem_number
 
-        # Extract board border box
+        # Extract board border box. Corners are used for projection matrix
         border_box = fe.get_board_border(board_region, self.debugger)
         self.problem_metadata['border_box'] = border_box
 
@@ -90,6 +90,7 @@ class GoSGFConverter:
         oriented_board = bt.orient_board(board_region, border_box)
         self.debugger.save_debug_image(oriented_board, "oriented_board.jpg")
 
+        # Get convex hull rect of board image
         convex_hull_border = fe.get_board_border(oriented_board, self.debugger)
 
         inverted_oriented_board = ip.invert_image(oriented_board)
@@ -113,31 +114,54 @@ class GoSGFConverter:
 
         # Get board line corners
         corners = fe.detect_board_corners(h_lines, v_lines)
+
+        # Convert corners dict to coordinate 2d array
+        lines_border = fe.corners_to_array(corners)
+
+        # Draw border lines
         border_lines_image = du.draw_board_corners(oriented_board, corners)
         self.debugger.save_debug_image(border_lines_image, "border_lines_image.jpg")
 
-        lines_border = fe.corners_to_array(corners)
-
+        # Determine which edges of the board image are board edges
         board_edges = fe.get_board_edges(convex_hull_border, lines_border)
         print(board_edges)
 
+        # Draw inner/outer bounding regions used in determining board edges
+        extended_region_image = du.draw_inner_outer_borders(oriented_board, lines_border, convex_hull_border)
+        self.debugger.save_debug_image(extended_region_image, "extended_region_image.jpg")
+
+        # Get coordinates of board corners
+        corner_points = fe.get_corner_points(corners, board_edges)
+        self.problem_metadata['corner_points'] = corner_points
+        print(corner_points)
+
         # Determine grid spacing
-        h_spacing, v_spacing = sd.find_grid_parameters(h_lines, v_lines)
-        self.problem_metadata['grid_spacing'] = (h_spacing, v_spacing)
+        grid_spacing = sd.find_grid_parameters(h_lines, v_lines)
+        self.problem_metadata['grid_spacing'] = grid_spacing
 
+        # Construct board grid from corner_points and grid spacing
+        board_grid = fe.construct_board_grid(corner_points, grid_spacing)
+        # print(board_grid)
+
+        # Filter out points which do not lie within oriented board image
+        image_grid = fe.get_image_grid(board_grid, convex_hull_border)
+        grid_image = du.draw_grid_points(oriented_board, image_grid)
+        self.debugger.save_debug_image(grid_image, "grid_image.jpg")
+
+###################
+
+        # Save problem metadata
         filename = f'problem_metadata/problem_{problem_number}_metadata.json'
-
         serialize_data.save_to_json(self.problem_metadata, filename)
 
         #####################################################################################
 
-        # invert image colors before contours
+        # Detect stones at image_grid intersection points
+        stones = sd.detect_stones_geometric(thickened_oriented_board, image_grid)
+        stones_image = du.draw_stones_on_board(grid_image, stones, image_grid)
+        self.debugger.save_debug_image(stones_image, "stones_image.jpg")
 
-        exit(0)
-
-        # Detect stones using geometric approach
-        stones = sd.detect_stones_geometric(board_region, h_lines, v_lines,
-                                                        border_box, self.board_coordinates, self.debugger)
+        # convert stone coords "AB[(0, 18)][(1, 12)][(2, 13)]" to sgf coords
 
         return {
             'stones': stones,

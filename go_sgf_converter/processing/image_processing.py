@@ -15,7 +15,7 @@ def invert_image(board_image: np.ndarray):
 
 def thicken_lines(board_image: np.ndarray):
     # Define the kernel (controls how much to thicken)
-    kernel = np.ones((3, 3), np.uint8)  # You can try (5, 5) for even thicker lines
+    kernel = np.ones((3, 3), np.uint8)
 
     # Apply dilation
     thickened = cv2.dilate(board_image, kernel, iterations=1)
