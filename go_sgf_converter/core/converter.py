@@ -26,8 +26,6 @@ class GoSGFConverter:
         Args:
             processed_dir: Directory path to save debug images during processing
         """
-        self.board_coordinates = 'abcdefghjklmnopqrst'  # Skipping 'i'
-        self.processed_dir = processed_dir
         self.debugger = Debugger(processed_dir)
         self.problem_metadata = {}
     
