@@ -4,7 +4,6 @@ Main converter class for transforming Go problem images to SGF format.
 from typing import Dict, Optional
 
 import numpy as np
-import json
 
 from go_sgf_converter.utils.debugger import Debugger
 from go_sgf_converter.utils import draw_utils as du
@@ -14,13 +13,13 @@ from go_sgf_converter.processing import feature_extraction as fe
 from go_sgf_converter.processing import board_transformations as bt
 from go_sgf_converter.processing import stone_detection as sd
 from go_sgf_converter.processing import image_processing as ip
-from go_sgf_converter.io import image_loader, sgf_utils, serialize_data
+from go_sgf_converter.io import image_loader, save_sgf, serialize_data
 
 
 class GoSGFConverter:
     """Main class for converting Go problem images to SGF format."""
     
-    def __init__(self, processed_dir: str):
+    def __init__(self, processed_dir: str, debug: bool = True):
         """Initialize the converter.
         
         Args:
@@ -48,7 +47,7 @@ class GoSGFConverter:
             
             # Process single problem
             problem_data = self.extract_problem_data(img)
-            sgf = sgf_utils.create_sgf(problem_data)
+            sgf = save_sgf.create_sgf(problem_data)
             
             return sgf
         except Exception as e:
@@ -65,6 +64,9 @@ class GoSGFConverter:
             Dictionary with problem data including stones, description and player
         """
         print('extract_problem_data...')
+
+        # TODO: if problem_metadata exists, bypass processing steps
+        # TODO: add debug option to cli to toggle debugger features
 
         # Find text regions to isolate board
         problem_region, board_region, description_region, board_bounds = find_board_bounds_by_text(
@@ -94,10 +96,6 @@ class GoSGFConverter:
         inverted_oriented_board = ip.invert_image(oriented_board)
         thickened_oriented_board = ip.thicken_lines(inverted_oriented_board)
         self.debugger.save_debug_image(thickened_oriented_board, "thickened_oriented_board.jpg")
-
-        #####################################################################################
-        # Now oriented_board contains the centered-orthogonal board image
-        #####################################################################################
 
         # Extract board lines
         oriented_edges, oriented_lines = fe.detect_lines(oriented_board)
@@ -139,14 +137,11 @@ class GoSGFConverter:
 
         # Construct board grid from corner_points and grid spacing
         board_grid = fe.construct_board_grid(corner_points, grid_spacing)
-        # print(board_grid)
 
         # Filter out points which do not lie within oriented board image
         image_grid = fe.get_image_grid(board_grid, convex_hull_border)
         grid_image = du.draw_grid_points(oriented_board, image_grid)
         self.debugger.save_debug_image(grid_image, "grid_image.jpg")
-
-###################
 
         # Save problem metadata
         filename = f'problem_metadata/problem_{problem_number}_metadata.json'

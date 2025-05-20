@@ -37,7 +37,6 @@ def detect_stone_at_point(image: np.ndarray, point: Tuple[int, int]) -> Union[st
     circles = cv2.HoughCircles(region, cv2.HOUGH_GRADIENT, 1, 20,
                                param1=50, param2=15, minRadius=8, maxRadius=18)
     print(f'check: {point}, {avg_intensity}')
-    print(circles)
 
     # if circles is not None and len(circles[0]) > 0:
         # Found circular pattern, determine color based on intensity

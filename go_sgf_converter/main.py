@@ -46,7 +46,7 @@ def main():
     os.makedirs(metadata_dir, exist_ok=True)
 
     # Process image
-    converter = GoSGFConverter(processed_dir)
+    converter = GoSGFConverter(processed_dir, args.debug)
     sgf_content = converter.process_image(args.image)
     
     # Save SGF file
