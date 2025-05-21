@@ -1,7 +1,7 @@
 """
 Drawing Utility Functions
 """
-from typing import Tuple, Dict, Optional
+from typing import Tuple, Dict, Optional, Union, List
 
 import cv2
 import numpy as np
@@ -120,20 +120,47 @@ def draw_stones_on_board(board_image, stones, grid_points):
     return debug_image
 
 
-def generate_histogram_image(data: Dict, title: str = "Intensity Histogram") -> np.ndarray:
-    """Generate a histogram image from a dictionary of values."""
-    values = list(data.values())
+def generate_histogram_image(
+        data: Union[Dict, List[float], np.ndarray],
+        title: str = "Histogram",
+        xlabel: str = "Value",
+        ylabel: str = "Frequency",
+        bins: int = 30,
+        color: str = "blue"
+) -> np.ndarray:
+    """Generate a histogram image from a dict or 1D list/array of values.
+
+    Args:
+        data: Either a dictionary (values will be used) or a 1D list/array of numbers.
+        title: Title of the histogram.
+        xlabel: Label for the x-axis.
+        ylabel: Label for the y-axis.
+        bins: Number of bins in the histogram.
+        color: Color of the histogram bars.
+
+    Returns:
+        NumPy array representing the RGB image of the histogram.
+    """
+    # Extract values from dictionary or use data directly
+    if isinstance(data, dict):
+        values = list(data.values())
+    elif isinstance(data, (list, np.ndarray)):
+        values = data
+    else:
+        raise TypeError("Unsupported data type. Must be dict, list, or 1D numpy array.")
+
+    values = np.asarray(values).flatten()
 
     fig, ax = plt.subplots()
-    ax.hist(values, bins=30, color='blue', edgecolor='black')
+    ax.hist(values, bins=bins, color=color, edgecolor='black')
     ax.set_title(title)
-    ax.set_xlabel("Average Intensity")
-    ax.set_ylabel("Frequency")
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
 
-    # Render the figure to a numpy array
+    # Render figure to a numpy array
     fig.canvas.draw()
-    hist_image = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
-    hist_image = hist_image.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+    img = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+    img = img.reshape(fig.canvas.get_width_height()[::-1] + (3,))
 
     plt.close(fig)
-    return hist_image
+    return img

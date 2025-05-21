@@ -9,6 +9,7 @@ import cv2
 import numpy as np
 
 from go_sgf_converter.utils.debugger import Debugger
+from go_sgf_converter.utils import draw_utils
 
 
 def get_boundaries(border):
@@ -105,18 +106,29 @@ def find_grid_spacing(h_lines: List, v_lines: List) -> Dict:
     v_coords.sort()
     h_coords.sort()
 
+    debugger = Debugger.get_instance()
+    if debugger:
+        v_coords_hist_img = draw_utils.generate_histogram_image(v_coords, title="v_coords", bins=len(v_coords))
+        debugger.save_debug_image(v_coords_hist_img, "v_coords.png")
+        h_coords_hist_img = draw_utils.generate_histogram_image(h_coords, title="h_coords", bins=len(h_coords))
+        debugger.save_debug_image(h_coords_hist_img, "h_coords.png")
+
     # Calculate spacing
     def find_most_common_spacing(coords):
         if len(coords) < 2:
             return 30  # Default spacing
         differences = []
-        # line_diffs = []
+        line_diffs = []
         for i in range(len(coords) - 1):
             diff = coords[i + 1] - coords[i]
-            # line_diffs.append(diff)
-            if 10 <= diff <= 65:  # Reasonable range for grid spacing
+            line_diffs.append(diff)
+            if 10 <= diff <= 80:  # Reasonable range for grid spacing
                 differences.append(diff)
-        # print(line_diffs)
+
+        if debugger:
+            diff_hist_img = draw_utils.generate_histogram_image(line_diffs, title="line_diffs")
+            debugger.save_debug_image(diff_hist_img, "line_diffs.png")
+
         if differences:
             return int(np.median(differences))
         return 30

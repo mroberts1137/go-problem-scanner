@@ -64,9 +64,8 @@ class GoSGFConverter:
         print('extract_problem_data...')
 
         # TODO: if problem_metadata exists, bypass processing steps
-        # TODO: add debug option to cli to toggle debugger features
-        # TODO: Bin avg_intensity for stone_detection. Determine 3-modal shape and where to divide
         # TODO: features and oriented_features don't need the same features extraction function
+        # TODO: line spacing counting nearest neighbor should try to count spacing between nearest medians
 
         # Find text regions to isolate board
         problem_region, board_region, description_region, board_bounds = image_segmenter.segment_board_components(
