@@ -62,12 +62,11 @@ def extract_board_features(board_image: np.ndarray) -> Dict:
     }
 
 
-def build_board_grid(feature_data: Dict, board_image: np.ndarray) -> Dict:
+def build_board_grid(feature_data: Dict) -> Dict:
     """Build a grid representation of the Go board.
 
     Args:
         feature_data: Dictionary of extracted board features
-        board_image: Image of the board
 
     Returns:
         Dictionary containing grid data and image grid

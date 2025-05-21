@@ -439,16 +439,15 @@ def get_board_border(board_image: np.ndarray):
 
     box = sort_corners(box)
 
-    contour_image = board_image.copy()
-    cv2.drawContours(contour_image, contours, -1, (0, 0, 255), 2)
-
     if debugger:
+        contour_image = board_image.copy()
+        cv2.drawContours(contour_image, contours, -1, (0, 0, 255), 2)
+
         debugger.save_debug_image(contour_image, "contour_image.jpg")
 
-    box_image = board_image.copy()
-    cv2.drawContours(box_image, [box], 0, (0, 0, 255), 3)
+        box_image = board_image.copy()
+        cv2.drawContours(box_image, [box], 0, (0, 0, 255), 3)
 
-    if debugger:
         debugger.save_debug_image(box_image, "border_box_image.jpg")
 
     return box
