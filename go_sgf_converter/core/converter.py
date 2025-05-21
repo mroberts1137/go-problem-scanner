@@ -127,7 +127,7 @@ class GoSGFConverter:
         self.problem_metadata['grid_spacing'] = full_board_grid['grid_spacing']
 
         # Detect stones at image_grid intersection points
-        stones = sd.detect_stones_geometric(thickened_oriented_board, image_grid)
+        stones = sd.detect_stones_geometric(thickened_oriented_board, image_grid, full_board_grid['grid_spacing'])
 
         # Visualize grid
         if self.debugger:
