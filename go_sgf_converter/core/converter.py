@@ -87,8 +87,10 @@ class GoSGFConverter:
 
         self.problem_metadata['proj_mat_corners'] = features['border_box']
 
+        print('Orienting board with ', features['border_box'])
+
         # Orient board with projective transformation
-        oriented_board = bt.orient_board(board_region, features['border_box'])
+        oriented_board = bt.orient_board(board_region, features['border_box'], False)
 
         if self.debugger:
             self.debugger.save_debug_image(oriented_board, "oriented_board.jpg")
@@ -120,7 +122,7 @@ class GoSGFConverter:
         self.problem_metadata['corner_points'] = oriented_features['corner_points']
 
         # Build the board grid
-        full_board_grid = fe.build_board_grid(oriented_features, oriented_board)
+        full_board_grid = fe.build_board_grid(oriented_features)
 
         # Image grid filters out grid points outside the image
         image_grid = full_board_grid['image_grid']
