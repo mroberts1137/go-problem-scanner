@@ -9,12 +9,47 @@ import os
 class Debugger:
     """Utility class for saving intermediate processing steps for debugging."""
     
+    _instance = None
+    _debug_enabled = False
+
+    @classmethod
+    def set_debug_enabled(cls, enabled: bool):
+        """Enable or disable debugging globally.
+
+        Args:
+            enabled: If True, debugging will be enabled.
+        """
+        cls._debug_enabled = enabled
+
+    @classmethod
+    def get_instance(cls, processed_dir=None):
+        """Get or create the singleton debugger instance.
+
+        Args:
+            processed_dir: Directory path to save debug images (only used on first call)
+
+        Returns:
+            The singleton debugger instance or None if not _debug_enabled
+        """
+        if not cls._debug_enabled:
+            return None
+
+        if cls._instance is None:
+            if processed_dir is None:
+                raise ValueError("processed_dir must be provided for first instance creation")
+            cls._instance = cls(processed_dir)
+        return cls._instance
+
     def __init__(self, processed_dir):
         """Initialize a debugger with a directory to save debug images.
-        
+
         Args:
             processed_dir: Directory path to save debug images
         """
+        # Prevent direct instantiation outside of get_instance
+        if Debugger._instance is not None and Debugger._instance is not self:
+            raise RuntimeError("Cannot create multiple instances of Debugger. Use get_instance() instead.")
+
         self.processed_dir = processed_dir
         self.debug_count = 0
         

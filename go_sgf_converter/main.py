@@ -3,10 +3,10 @@ Main entry point for the Go SGF Converter application.
 """
 import os
 import argparse
-from typing import Optional
 
 from go_sgf_converter.core.converter import GoSGFConverter
 from go_sgf_converter.io.image_loader import save_sgf
+from go_sgf_converter.utils.debugger import Debugger
 
 
 def main():
@@ -15,7 +15,7 @@ def main():
     parser.add_argument('--image', '-i', required=True, help='Path to the image file to process')
     parser.add_argument('--output', '-o', help='Output SGF file path')
     parser.add_argument('--debug', '-d', action='store_true', help='Enable debug output')
-    
+
     args = parser.parse_args()
 
     # Use current working directory (from where script is called)
@@ -37,16 +37,20 @@ def main():
     else:
         output_filename = os.path.join(cwd, args.output)
 
-    # Create processed images directory in cwd
-    processed_dir = os.path.join(cwd, f"processed_images-{problem_num}")
+    # Create processed images directory: <cwd>/debug/<problem_num>
+    processed_dir = os.path.join(cwd, "debug", str(problem_num))
     os.makedirs(processed_dir, exist_ok=True)
 
     # Create problem metadata directory in cwd
     metadata_dir = os.path.join(cwd, f"problem_metadata")
     os.makedirs(metadata_dir, exist_ok=True)
 
+    # Create Debugger singleton is debug argument is given
+    Debugger.set_debug_enabled(args.debug)
+    Debugger.get_instance(processed_dir)
+
     # Process image
-    converter = GoSGFConverter(processed_dir, args.debug)
+    converter = GoSGFConverter()
     sgf_content = converter.process_image(args.image)
     
     # Save SGF file

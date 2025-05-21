@@ -7,14 +7,15 @@ import pytesseract
 import re
 from typing import Tuple, Dict
 
+from go_sgf_converter.utils.debugger import Debugger
 
-def find_board_bounds_by_text(image: np.ndarray, debugger) -> Tuple[np.ndarray, np.ndarray, np.ndarray, Dict]:
+
+def find_board_bounds_by_text(image: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, Dict]:
     """Find board boundaries by locating Problem title and description text
-    
+
     Args:
         image: Input image containing Go problem
-        debugger: Debugger instance for saving intermediate images
-        
+
     Returns:
         Tuple of (problem_region, board_region, description_region) as numpy arrays
     """
@@ -46,7 +47,9 @@ def find_board_bounds_by_text(image: np.ndarray, debugger) -> Tuple[np.ndarray, 
                 description_y = y  # Top of description text
                 print(f"DEBUG: Found description text starting at y={description_y}")
 
-    debugger.save_debug_image(debug_image, "text_detection.jpg")
+    debugger = Debugger.get_instance()
+    if debugger:
+        debugger.save_debug_image(debug_image, "text_detection.jpg")
 
     # If we couldn't find text bounds, use defaults
     if problem_y is None:
@@ -74,3 +77,23 @@ def find_board_bounds_by_text(image: np.ndarray, debugger) -> Tuple[np.ndarray, 
     description_region = image[board_bounds['bottom']:, board_bounds['left']:board_bounds['right']]
 
     return problem_region, board_region, description_region, board_bounds
+
+
+def segment_board_components(image: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, Dict]:
+    """Complete board segmentation pipeline handling both text detection and board extraction.
+
+    This function combines text detection for segmentation and board boundary finding,
+    providing a complete solution for extracting the Go board region from an image.
+
+    Args:
+        image: Input image containing Go problem
+
+    Returns:
+        Tuple of (problem_region, board_region, description_region) as numpy arrays
+        and dictionary with board bounds information
+    """
+    # Segment regions by text detection
+    problem_region, board_region, description_region, bounds = find_board_bounds_by_text(
+        image)
+
+    return problem_region, board_region, description_region, bounds

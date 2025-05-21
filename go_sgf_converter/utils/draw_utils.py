@@ -1,9 +1,11 @@
 """
 Drawing Utility Functions
 """
+from typing import Tuple, Dict, Optional
+
 import cv2
 import numpy as np
-from typing import Tuple, Dict, Optional
+import matplotlib.pyplot as plt
 
 from go_sgf_converter.utils import sgf_utils
 
@@ -116,3 +118,22 @@ def draw_stones_on_board(board_image, stones, grid_points):
                         cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 0, 0), 1, cv2.LINE_AA)
 
     return debug_image
+
+
+def generate_histogram_image(data: Dict, title: str = "Intensity Histogram") -> np.ndarray:
+    """Generate a histogram image from a dictionary of values."""
+    values = list(data.values())
+
+    fig, ax = plt.subplots()
+    ax.hist(values, bins=30, color='blue', edgecolor='black')
+    ax.set_title(title)
+    ax.set_xlabel("Average Intensity")
+    ax.set_ylabel("Frequency")
+
+    # Render the figure to a numpy array
+    fig.canvas.draw()
+    hist_image = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+    hist_image = hist_image.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+
+    plt.close(fig)
+    return hist_image
