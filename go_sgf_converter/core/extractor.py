@@ -3,30 +3,28 @@ import numpy as np
 import pytesseract
 import re
 import os
-from typing import List, Tuple, Dict
-import argparse
+from typing import List, Tuple, Optional
+import matplotlib.pyplot as plt
 
 
-class GoProblemParser:
-    def __init__(self, padding_factor: float = 0.1, min_problem_height: int = 200, min_problem_width: int = 150):
+class GoProblemExtractor:
+    def __init__(self, padding: int = 20, debug: bool = True):
         """
-        Initialize the Go problem parser.
+        Initialize the Go problem extractor.
 
         Args:
-            padding_factor: Factor to add padding around detected problems (0.1 = 10% padding)
-            min_problem_height: Minimum height for a problem region
-            min_problem_width: Minimum width for a problem region
+            padding: Pixels to add around each detected problem region
+            debug: Whether to show intermediate processing steps
         """
-        self.padding_factor = padding_factor
-        self.min_problem_height = min_problem_height
-        self.min_problem_width = min_problem_width
+        self.padding = padding
+        self.debug = debug
 
         # Create output directory
         os.makedirs("problem_images", exist_ok=True)
 
     def preprocess_image(self, image: np.ndarray) -> np.ndarray:
         """
-        Preprocess the image for better OCR and analysis.
+        Preprocess the image with thresholding and sharpening.
 
         Args:
             image: Input image as numpy array
@@ -43,231 +41,241 @@ class GoProblemParser:
         # Apply Gaussian blur to reduce noise
         blurred = cv2.GaussianBlur(gray, (3, 3), 0)
 
-        # Apply sharpening kernel
-        kernel = np.array([[-1, -1, -1],
-                           [-1, 9, -1],
-                           [-1, -1, -1]])
-        sharpened = cv2.filter2D(blurred, -1, kernel)
-
-        # Apply adaptive thresholding for better text detection
-        binary = cv2.adaptiveThreshold(
-            sharpened, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2
+        # Apply adaptive thresholding
+        thresh = cv2.adaptiveThreshold(
+            blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+            cv2.THRESH_BINARY, 11, 2
         )
 
-        # Invert image (white background -> black, black text -> white)
-        inverted = cv2.bitwise_not(binary)
+        # Sharpen the image
+        kernel = np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]])
+        sharpened = cv2.filter2D(thresh, -1, kernel)
 
-        return inverted
+        # Invert image (white background, black text -> black background, white text)
+        inverted = cv2.bitwise_not(sharpened)
+        cv2.imwrite("preprocess/a-out.jpg", sharpened)
 
-    def find_problem_headers(self, image: np.ndarray) -> List[Dict]:
+        blurred_image = cv2.medianBlur(sharpened, 5)
+        cv2.imwrite("preprocess/b-out.jpg", blurred_image)
+
+        # if self.debug:
+        #     self._show_debug_images([
+        #         (gray, "Original Grayscale"),
+        #         (thresh, "Thresholded"),
+        #         (sharpened, "Sharpened"),
+        #         (inverted, "Inverted")
+        #     ])
+
+        return blurred_image
+
+    def detect_problem_headers(self, image: np.ndarray) -> List[Tuple[int, int, int, int, int]]:
         """
-        Find all "Problem ##" headers in the image using OCR.
+        Detect "Problem ##" headers in the image.
 
         Args:
             image: Preprocessed image
 
         Returns:
-            List of dictionaries containing problem number and bounding box info
+            List of tuples (x, y, w, h, problem_number)
         """
-        # Use pytesseract to get detailed OCR data
-        custom_config = r'--oem 3 --psm 6 -c tessedit_char_whitelist=0123456789ProblemABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz '
+        # Use pytesseract to get detailed text information
+        data = pytesseract.image_to_data(image, output_type=pytesseract.Output.DICT)
+        print(data['text'])
 
-        # Get OCR data with bounding boxes
-        data = pytesseract.image_to_data(image, config=custom_config, output_type=pytesseract.Output.DICT)
+        problem_headers = []
 
-        problems = []
-        problem_pattern = re.compile(r'Problem\s+(\d+)', re.IGNORECASE)
+        # Look for "Problem" text followed by numbers
+        for i, text in enumerate(data['text']):
+            if text.strip():
+                # Check if this looks like a problem header
+                if re.search(r'problem', text.lower()) or text.lower().strip() == 'problem':
+                    # Get bounding box
+                    x = data['left'][i]
+                    y = data['top'][i]
+                    w = data['width'][i]
+                    h = data['height'][i]
+                    print(x, y, w, h)
 
-        # Group words that are close together to form potential problem headers
-        n_boxes = len(data['level'])
-        for i in range(n_boxes):
-            text = data['text'][i].strip()
-            if text and data['conf'][i] > 30:  # Confidence threshold
-                # Look for "Problem" followed by number in next words
-                if 'problem' in text.lower():
-                    # Try to find the complete problem header
-                    header_text = text
-                    x, y, w, h = data['left'][i], data['top'][i], data['width'][i], data['height'][i]
+                    # Try to extract problem number
+                    problem_num = self._extract_problem_number(text, data, i)
 
-                    # Look ahead for the number part
-                    for j in range(i + 1, min(i + 5, n_boxes)):
-                        next_text = data['text'][j].strip()
-                        if next_text and data['conf'][j] > 30:
-                            # Check if next word is close enough (same line)
-                            next_x = data['left'][j]
-                            next_y = data['top'][j]
-                            if abs(next_y - y) < h and next_x - (x + w) < 50:
-                                header_text += " " + next_text
-                                w = next_x + data['width'][j] - x  # Extend bounding box
-                            else:
-                                break
+                    if problem_num:
+                        problem_headers.append((x, y, w, h, problem_num))
 
-                    # Check if we found a valid problem header
-                    match = problem_pattern.search(header_text)
-                    if match:
-                        problem_num = int(match.group(1))
-                        problems.append({
-                            'number': problem_num,
-                            'text': header_text,
-                            'bbox': (x, y, w, h),
-                            'center_x': x + w // 2,
-                            'center_y': y + h // 2
-                        })
+        # Sort by position (top to bottom, left to right)
+        problem_headers.sort(key=lambda x: (x[1], x[0]))
 
-        # Sort problems by position (top to bottom, left to right)
-        problems.sort(key=lambda p: (p['center_y'], p['center_x']))
+        if self.debug:
+            print(f"Found {len(problem_headers)} problem headers: {[p[4] for p in problem_headers]}")
 
-        # Remove duplicates (same problem detected multiple times)
-        unique_problems = []
-        for prob in problems:
-            is_duplicate = False
-            for existing in unique_problems:
-                if (abs(prob['center_x'] - existing['center_x']) < 100 and
-                        abs(prob['center_y'] - existing['center_y']) < 50 and
-                        prob['number'] == existing['number']):
-                    is_duplicate = True
-                    break
-            if not is_duplicate:
-                unique_problems.append(prob)
+        return problem_headers
 
-        return unique_problems
-
-    def estimate_problem_regions(self, problems: List[Dict], image_shape: Tuple[int, int]) -> List[Dict]:
+    def _extract_problem_number(self, text: str, data: dict, index: int) -> Optional[int]:
         """
-        Estimate the bounding regions for each problem based on header positions.
+        Extract problem number from text or nearby text elements.
 
         Args:
-            problems: List of detected problem headers
-            image_shape: Shape of the image (height, width)
+            text: Current text element
+            data: Full OCR data
+            index: Index of current text element
 
         Returns:
-            List of problem regions with estimated bounding boxes
+            Problem number if found, None otherwise
         """
-        height, width = image_shape[:2]
+        # First try to extract from current text
+        match = re.search(r'problem\s*(\d+)', text.lower())
+        if match:
+            return int(match.group(1))
 
-        if not problems:
+        # If current text is just "Problem", look at nearby text elements
+        if text.lower().strip() == 'problem':
+            current_y = data['top'][index]
+            current_x = data['left'][index]
+
+            # Look for numbers in nearby positions
+            for i, other_text in enumerate(data['text']):
+                if i != index and other_text.strip():
+                    other_y = data['top'][i]
+                    other_x = data['left'][i]
+
+                    # Check if it's roughly on the same line and nearby
+                    if (abs(other_y - current_y) < 20 and
+                            abs(other_x - current_x) < 200 and
+                            other_text.strip().isdigit()):
+                        return int(other_text.strip())
+
+        return None
+
+    def estimate_problem_regions(self, image: np.ndarray,
+                                 headers: List[Tuple[int, int, int, int, int]]) -> List[Tuple[int, int, int, int, int]]:
+        """
+        Estimate the full region for each problem based on headers.
+
+        Args:
+            image: Preprocessed image
+            headers: List of detected problem headers
+
+        Returns:
+            List of tuples (x, y, w, h, problem_number) for full problem regions
+        """
+        if not headers:
             return []
 
-        # Estimate grid layout
-        # Group problems by rows (similar y-coordinates)
-        rows = []
-        row_tolerance = 50
-
-        for prob in problems:
-            placed = False
-            for row in rows:
-                if abs(prob['center_y'] - row[0]['center_y']) < row_tolerance:
-                    row.append(prob)
-                    placed = True
-                    break
-            if not placed:
-                rows.append([prob])
-
-        # Sort each row by x-coordinate
-        for row in rows:
-            row.sort(key=lambda p: p['center_x'])
-
-        # Sort rows by y-coordinate
-        rows.sort(key=lambda row: row[0]['center_y'])
-
+        height, width = image.shape
         regions = []
 
-        for row_idx, row in enumerate(rows):
-            for col_idx, prob in enumerate(row):
-                # Estimate problem boundaries
-                header_bbox = prob['bbox']
-                header_x, header_y, header_w, header_h = header_bbox
+        # Estimate grid layout
+        num_problems = len(headers)
 
-                # Estimate left and right boundaries
-                if col_idx == 0:
-                    left = 0
-                else:
-                    prev_prob = row[col_idx - 1]
-                    left = (prev_prob['center_x'] + prob['center_x']) // 2 - 20
+        # Try to determine grid dimensions
+        if num_problems <= 4:
+            grid_rows, grid_cols = 2, 2
+        elif num_problems <= 6:
+            grid_rows, grid_cols = 2, 3
+        elif num_problems <= 9:
+            grid_rows, grid_cols = 3, 3
+        else:
+            # For larger numbers, estimate based on header positions
+            unique_y = sorted(list(set([h[1] for h in headers])))
+            grid_rows = len(unique_y)
+            grid_cols = num_problems // grid_rows
 
-                if col_idx == len(row) - 1:
-                    right = width
-                else:
-                    next_prob = row[col_idx + 1]
-                    right = (prob['center_x'] + next_prob['center_x']) // 2 + 20
+        # Estimate cell dimensions
+        cell_width = width // grid_cols
+        cell_height = height // grid_rows
 
-                # Estimate top and bottom boundaries
-                if row_idx == 0:
-                    top = 0
-                else:
-                    prev_row = rows[row_idx - 1]
-                    # Find the closest problem in the previous row
-                    prev_y = max(p['center_y'] for p in prev_row)
-                    top = (prev_y + prob['center_y']) // 2 - 30
+        for i, (hx, hy, hw, hh, prob_num) in enumerate(headers):
+            # Determine grid position
+            row = i // grid_cols
+            col = i % grid_cols
 
-                if row_idx == len(rows) - 1:
-                    bottom = height
-                else:
-                    next_row = rows[row_idx + 1]
-                    # Find the closest problem in the next row
-                    next_y = min(p['center_y'] for p in next_row)
-                    bottom = (prob['center_y'] + next_y) // 2 + 30
+            # Calculate region boundaries
+            region_x = max(0, col * cell_width - self.padding)
+            region_y = max(0, row * cell_height - self.padding)
+            region_w = min(cell_width + 2 * self.padding, width - region_x)
+            region_h = min(cell_height + 2 * self.padding, height - region_y)
 
-                # Ensure minimum dimensions
-                region_width = right - left
-                region_height = bottom - top
-
-                if region_width < self.min_problem_width:
-                    center_x = left + region_width // 2
-                    left = max(0, center_x - self.min_problem_width // 2)
-                    right = min(width, left + self.min_problem_width)
-
-                if region_height < self.min_problem_height:
-                    center_y = top + region_height // 2
-                    top = max(0, center_y - self.min_problem_height // 2)
-                    bottom = min(height, top + self.min_problem_height)
-
-                # Add padding
-                padding_w = int(region_width * self.padding_factor)
-                padding_h = int(region_height * self.padding_factor)
-
-                left = max(0, left - padding_w)
-                right = min(width, right + padding_w)
-                top = max(0, top - padding_h)
-                bottom = min(height, bottom + padding_h)
-
-                regions.append({
-                    'number': prob['number'],
-                    'bbox': (left, top, right - left, bottom - top),
-                    'header_bbox': header_bbox
-                })
+            regions.append((region_x, region_y, region_w, region_h, prob_num))
 
         return regions
 
-    def extract_and_save_problems(self, original_image: np.ndarray, regions: List[Dict]) -> None:
+    def extract_and_save_problems(self, original_image: np.ndarray,
+                                  regions: List[Tuple[int, int, int, int, int]]) -> None:
         """
         Extract problem regions and save them as separate images.
 
         Args:
-            original_image: Original input image
+            original_image: Original image (before preprocessing)
             regions: List of problem regions to extract
         """
-        for region in regions:
-            problem_num = region['number']
-            x, y, w, h = region['bbox']
-
-            # Extract the region from the original image
+        for x, y, w, h, prob_num in regions:
+            # Extract region from original image
             problem_image = original_image[y:y + h, x:x + w]
 
             # Save the image
-            filename = f"problem_images/problem-{problem_num:03d}.jpg"
+            filename = f"problem_images/problem-{prob_num:02d}.jpg"
             cv2.imwrite(filename, problem_image)
-            print(f"Saved {filename} (region: {x}, {y}, {w}, {h})")
 
-    def process_page(self, image_path: str, debug: bool = False) -> None:
+            if self.debug:
+                print(f"Saved problem {prob_num} to {filename} "
+                      f"(region: {x}, {y}, {w}, {h})")
+
+    def _show_debug_images(self, images_and_titles: List[Tuple[np.ndarray, str]]) -> None:
+        """Show debug images in a grid layout."""
+        n_images = len(images_and_titles)
+        cols = min(2, n_images)
+        rows = (n_images + cols - 1) // cols
+
+        plt.figure(figsize=(15, 5 * rows))
+
+        for i, (img, title) in enumerate(images_and_titles):
+            plt.subplot(rows, cols, i + 1)
+            plt.imshow(img, cmap='gray')
+            plt.title(title)
+            plt.axis('off')
+
+        plt.tight_layout()
+        plt.show()
+
+    def visualize_detections(self, image: np.ndarray,
+                             headers: List[Tuple[int, int, int, int, int]],
+                             regions: List[Tuple[int, int, int, int, int]]) -> None:
         """
-        Process a complete go problem book page.
+        Visualize detected headers and problem regions.
+
+        Args:
+            image: Original image
+            headers: Detected problem headers
+            regions: Estimated problem regions
+        """
+        vis_image = image.copy()
+        if len(vis_image.shape) == 2:
+            vis_image = cv2.cvtColor(vis_image, cv2.COLOR_GRAY2BGR)
+
+        # Draw headers in red
+        for x, y, w, h, prob_num in headers:
+            cv2.rectangle(vis_image, (x, y), (x + w, y + h), (0, 0, 255), 2)
+            cv2.putText(vis_image, f"P{prob_num}", (x, y - 5),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+
+        # Draw regions in green
+        for x, y, w, h, prob_num in regions:
+            cv2.rectangle(vis_image, (x, y), (x + w, y + h), (0, 255, 0), 2)
+
+        plt.figure(figsize=(15, 10))
+        plt.imshow(cv2.cvtColor(vis_image, cv2.COLOR_BGR2RGB))
+        plt.title("Detected Problems (Red: Headers, Green: Regions)")
+        plt.axis('off')
+        plt.show()
+
+    def process_page(self, image_path: str) -> None:
+        """
+        Process a complete page of Go problems.
 
         Args:
             image_path: Path to the input image
-            debug: Whether to save debug images
         """
-        # Load the original image
+        # Load image
         original_image = cv2.imread(image_path)
         if original_image is None:
             raise ValueError(f"Could not load image from {image_path}")
@@ -275,70 +283,49 @@ class GoProblemParser:
         print(f"Processing image: {image_path}")
         print(f"Image dimensions: {original_image.shape}")
 
-        # Preprocess for OCR
-        preprocessed = self.preprocess_image(original_image)
+        # Preprocess image
+        processed_image = self.preprocess_image(original_image)
 
-        if debug:
-            cv2.imwrite("debug_preprocessed.jpg", preprocessed)
+        # Detect problem headers
+        headers = self.detect_problem_headers(processed_image)
 
-        # Find problem headers
-        problems = self.find_problem_headers(preprocessed)
-        print(f"Found {len(problems)} problems:")
-        for prob in problems:
-            print(f"  Problem {prob['number']}: {prob['text']} at {prob['bbox']}")
-
-        if not problems:
-            print("No problems detected. Check image quality and OCR settings.")
+        if not headers:
+            print("No problem headers detected!")
             return
 
         # Estimate problem regions
-        regions = self.estimate_problem_regions(problems, original_image.shape)
+        regions = self.estimate_problem_regions(processed_image, headers)
 
-        # Create debug image showing detected regions
-        if debug:
-            debug_image = original_image.copy()
-            for region in regions:
-                x, y, w, h = region['bbox']
-                cv2.rectangle(debug_image, (x, y), (x + w, y + h), (0, 255, 0), 2)
-                cv2.putText(debug_image, f"P{region['number']}", (x, y - 10),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-            cv2.imwrite("debug_regions.jpg", debug_image)
+        # Visualize detections if in debug mode
+        if self.debug:
+            self.visualize_detections(original_image, headers, regions)
 
-        # Extract and save individual problems
+        # Extract and save problems
         self.extract_and_save_problems(original_image, regions)
 
-        print(f"Extraction complete! Saved {len(regions)} problems to problem_images/")
+        print(f"Successfully extracted {len(regions)} problems")
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Extract Go problems from scanned book pages')
-    parser.add_argument('image_path', help='Path to the input image')
-    parser.add_argument('--debug', action='store_true', help='Save debug images')
-    parser.add_argument('--padding', type=float, default=0.1,
-                        help='Padding factor around problems (default: 0.1)')
-    parser.add_argument('--min-height', type=int, default=200,
-                        help='Minimum problem height (default: 200)')
-    parser.add_argument('--min-width', type=int, default=150,
-                        help='Minimum problem width (default: 150)')
+    """Example usage of the Go problem extractor."""
 
-    args = parser.parse_args()
+    # Initialize extractor with debug mode enabled
+    extractor = GoProblemExtractor(padding=30, debug=True)
 
-    # Create parser instance
-    parser_instance = GoProblemParser(
-        padding_factor=args.padding,
-        min_problem_height=args.min_height,
-        min_problem_width=args.min_width
-    )
+    # Process an image
+    image_path = "pages/page-63.jpg"  # Replace with your image path
 
     try:
-        # Process the page
-        parser_instance.process_page(args.image_path, debug=args.debug)
+        extractor.process_page(image_path)
     except Exception as e:
         print(f"Error processing image: {e}")
-        return 1
 
-    return 0
+        # If automatic detection fails, you can try manual parameter adjustment
+        print("\nTry adjusting the following parameters:")
+        print("- Increase padding if problems are cut off")
+        print("- Check image quality and contrast")
+        print("- Ensure problem headers contain 'Problem ##' text")
 
 
 if __name__ == "__main__":
-    exit(main())
+    main()
