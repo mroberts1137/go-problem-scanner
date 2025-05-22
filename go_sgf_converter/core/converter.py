@@ -90,10 +90,7 @@ class GoSGFConverter:
         print('Orienting board with ', features['border_box'])
 
         # Orient board with projective transformation
-        oriented_board = bt.orient_board(board_region, features['border_box'], False)
-
-        if self.debugger:
-            self.debugger.save_debug_image(oriented_board, "oriented_board.jpg")
+        oriented_board = bt.orient_board(board_region, features['border_box'])
 
         # Get features for oriented board
         oriented_features = fe.extract_board_features(oriented_board)

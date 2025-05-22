@@ -27,11 +27,11 @@
   "corner_points": {
     "top-right": [
       549,
-      56
+      52
     ]
   },
   "grid_spacing": {
-    "h_spacing": 51,
-    "v_spacing": 73
+    "h_spacing": 52,
+    "v_spacing": 51
   }
 }
