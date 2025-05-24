@@ -1,0 +1,49 @@
+{
+  "board_bounds": {
+    "top": 150,
+    "bottom": 814,
+    "left": 0,
+    "right": 1218
+  },
+  "problem_number": "",
+  "proj_mat_corners": [
+    [
+      0,
+      0
+    ],
+    [
+      1217,
+      0
+    ],
+    [
+      1217,
+      663
+    ],
+    [
+      0,
+      663
+    ]
+  ],
+  "corner_points": {
+    "top-left": [
+      49,
+      49
+    ],
+    "top-right": [
+      550,
+      49
+    ],
+    "bottom_right": [
+      550,
+      322
+    ],
+    "bottom-left": [
+      49,
+      322
+    ]
+  },
+  "grid_spacing": {
+    "h_spacing": 34,
+    "v_spacing": 34
+  }
+}
